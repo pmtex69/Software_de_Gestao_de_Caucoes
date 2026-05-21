@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html lang="pt-PT">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR218BYNK7"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-QR218BYNK7');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PedroTeixeira - Gestor de Garantias CCP ✨ AI Edition</title>
+    <title>PedroTeixeira - Gestor de Garantias CCP</title>
     <!-- Tailwind CSS para o design -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React e ReactDOM -->
@@ -21,28 +30,17 @@
             -webkit-appearance: none; 
             margin: 0; 
         }
-        .ai-shimmer {
-            background: linear-gradient(90deg, #6366f1 0%, #a855f7 50%, #6366f1 100%);
-            background-size: 200% auto;
-            animation: shimmer 3s linear infinite;
-        }
-        @keyframes shimmer {
-            to { background-position: 200% center; }
-        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-        const apiKey = ""; // A API Key é fornecida pelo ambiente de execução
+        const { useState, useEffect } = React;
 
         const App = () => {
-            const [activeTab, setActiveTab] = useState('empreitadas');
             const [items, setItems] = useState([]);
             const [isLoaded, setIsLoaded] = useState(false);
-            const [isGenerating, setIsGenerating] = useState(null); // ID do item a ser processado pela AI
             
             const defaultStages = [
                 { id: 1, percent: 30 }, { id: 2, percent: 30 }, 
@@ -50,7 +48,6 @@
                 { id: 5, percent: 10 }
             ];
 
-            // Inicializar ícones após montagem e atualizações
             useEffect(() => {
                 if (window.lucide) {
                     window.lucide.createIcons();
@@ -72,71 +69,14 @@
                 if (isLoaded) localStorage.setItem('ccp_garantias_data', JSON.stringify(items));
             }, [items, isLoaded]);
 
-            // Chamada à API Gemini com Backoff Exponencial
-            const fetchGemini = async (prompt, systemInstruction, retries = 5, delay = 1000) => {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            systemInstruction: { parts: [{ text: systemInstruction }] }
-                        })
-                    });
-                    
-                    if (!response.ok) throw new Error('Falha na API');
-                    const data = await response.json();
-                    return data.candidates?.[0]?.content?.parts?.[0]?.text;
-                } catch (error) {
-                    if (retries > 0) {
-                        await new Promise(res => setTimeout(res, delay));
-                        return fetchGemini(prompt, systemInstruction, retries - 1, delay * 2);
-                    }
-                    throw error;
-                }
-            };
-
-            const generateAIDescription = async (id, currentDesc) => {
-                if (!currentDesc) return;
-                setIsGenerating(`desc-${id}`);
-                try {
-                    const prompt = `Melhore esta descrição de um contrato público para ser mais formal e técnica: "${currentDesc}". Categoria: ${activeTab}.`;
-                    const systemPrompt = "És um especialista em Contratação Pública (CCP) em Portugal. Devolve apenas o texto melhorado, sem introduções ou aspas.";
-                    const result = await fetchGemini(prompt, systemPrompt);
-                    if (result) updateItem(id, 'descricao', result.trim());
-                } catch (e) {
-                    console.error(e);
-                } finally {
-                    setIsGenerating(null);
-                }
-            };
-
-            const analyzeRisk = async (item) => {
-                setIsGenerating(`risk-${item.id}`);
-                try {
-                    const prompt = `Analise este contrato: Descrição: ${item.descricao}, Valor: ${item.valorContrato}€, Caução: ${item.taxaCaucao}%, Início: ${item.dataInicio}. Categoria: ${item.categoria}.`;
-                    const systemPrompt = "És um consultor jurídico especializado no Código dos Contratos Públicos (CCP) de Portugal. Identifica potenciais riscos, prazos de garantia cruciais ou alertas sobre a libertação de cauções. Sê conciso e direto. Usa pontos de lista.";
-                    const result = await fetchGemini(prompt, systemPrompt);
-                    if (result) updateItem(item.id, 'aiAnalysis', result.trim());
-                } catch (e) {
-                    console.error(e);
-                } finally {
-                    setIsGenerating(null);
-                }
-            };
-
             const addItem = () => {
                 const newItem = {
                     id: Date.now(),
-                    categoria: activeTab,
                     descricao: '',
                     valorContrato: 0,
                     taxaCaucao: 5,
                     dataInicio: new Date().toISOString().split('T')[0],
-                    stages: [...defaultStages],
-                    aiAnalysis: null
+                    stages: [...defaultStages]
                 };
                 setItems([newItem, ...items]);
             };
@@ -156,9 +96,7 @@
             };
 
             const deleteItem = (id) => {
-                if(window.confirm("Tem a certeza que deseja eliminar este registo histórico?")) {
-                    setItems(items.filter(item => item.id !== id));
-                }
+                if(window.confirm("Eliminar este contrato?")) setItems(items.filter(item => item.id !== id));
             };
 
             const calculateResults = (item) => {
@@ -170,22 +108,10 @@
                 const calendar = item.stages.map((stage, index) => {
                     const dataLibertacao = new Date(dataBase);
                     dataLibertacao.setFullYear(dataBase.getFullYear() + (index + 1));
-                    return {
-                        data: isNaN(dataLibertacao.getTime()) ? item.dataInicio : dataLibertacao.toISOString().split('T')[0],
-                        valor: (valorCaucao * (stage.percent / 100))
-                    };
+                    return { data: isNaN(dataLibertacao.getTime()) ? item.dataInicio : dataLibertacao.toISOString().split('T')[0], valor: (valorCaucao * (stage.percent / 100)) };
                 });
                 return { valorCaucao, calendar };
             };
-
-            const stats = useMemo(() => {
-                const totalRetido = items.reduce((acc, item) => {
-                    const val = parseFloat(item.valorContrato) || 0;
-                    const taxa = parseFloat(item.taxaCaucao) || 0;
-                    return acc + (val * (taxa / 100));
-                }, 0);
-                return { totalRetido, totalContratos: items.length };
-            }, [items]);
 
             return (
                 <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -196,159 +122,59 @@
                             </div>
                             <div>
                                 <span className="block font-bold text-lg leading-none italic text-white">PedroTeixeira</span>
-                                <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest text-opacity-80">Gestão de Garantias & Histórico AI</span>
+                                <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest text-opacity-80">Gestão de Garantias CCP</span>
                             </div>
                         </div>
-                        <button onClick={addItem} className="bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95">
+                        <button onClick={addItem} className="bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg">
                             <i data-lucide="plus-circle" className="w-4 h-4"></i> Novo Contrato
                         </button>
                     </nav>
 
                     <main className="max-w-7xl mx-auto p-6 md:p-8">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
-                                <div className="bg-blue-50 p-4 rounded-xl text-blue-600">
-                                    <i data-lucide="trending-up"></i>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Global Retido</p>
-                                    <p className="text-2xl font-black text-slate-800">{stats.totalRetido.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}</p>
-                                </div>
+                        {items.length === 0 ? (
+                            <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-20 text-center">
+                                <h2 className="text-2xl font-black text-slate-700">Sem contratos registados</h2>
+                                <p className="text-slate-400 mt-2">Adicione um novo contrato para iniciar a gestão.</p>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
-                                <div className="bg-indigo-50 p-4 rounded-xl text-indigo-600">
-                                    <i data-lucide="history"></i>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contratos em Histórico</p>
-                                    <p className="text-2xl font-black text-slate-800">{stats.totalContratos}</p>
-                                </div>
-                            </div>
-                            <div className="bg-indigo-600 p-6 rounded-2xl shadow-lg flex items-center gap-5 text-white">
-                                <div className="bg-white/20 p-4 rounded-xl">
-                                    <i data-lucide="sparkles"></i>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Funcionalidade</p>
-                                    <p className="text-lg font-bold italic">Gemini AI Integrada ✨</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                            <div className="bg-slate-200 p-1 rounded-2xl flex w-full md:w-auto">
-                                <button onClick={() => setActiveTab('empreitadas')} className={`flex-1 md:flex-none px-8 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'empreitadas' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500'}`}>
-                                    <i data-lucide="briefcase" className="w-4 h-4"></i> Empreitadas
-                                </button>
-                                <button onClick={() => setActiveTab('bens')} className={`flex-1 md:flex-none px-8 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'bens' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500'}`}>
-                                    <i data-lucide="package" className="w-4 h-4"></i> Bens e Serviços
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="space-y-8">
-                            {items.filter(i => i.categoria === activeTab).length === 0 ? (
-                                <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-20 text-center">
-                                    <h2 className="text-2xl font-black text-slate-700">Histórico Vazio</h2>
-                                    <p className="text-slate-400 mt-2">Adicione um novo contrato para começar.</p>
-                                </div>
-                            ) : (
-                                items.filter(i => i.categoria === activeTab).map((item) => {
-                                    const { valorCaucao, calendar } = calculateResults(item);
-                                    return (
-                                        <div key={item.id} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-8 transition-all hover:shadow-md">
-                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
-                                                <div className="flex-1 w-full">
-                                                    <div className="flex items-center gap-2 w-full">
-                                                        <input 
-                                                            className="bg-transparent text-xl font-black text-slate-800 w-full outline-none" 
-                                                            placeholder="Referência/Fornecedor (ex: Pintura Escola EB1)" 
-                                                            value={item.descricao} 
-                                                            onChange={(e) => updateItem(item.id, 'descricao', e.target.value)} 
-                                                        />
-                                                        <button 
-                                                            onClick={() => generateAIDescription(item.id, item.descricao)}
-                                                            disabled={isGenerating === `desc-${item.id}`}
-                                                            className={`p-2 rounded-lg text-white ai-shimmer shadow-md transition-all ${isGenerating === `desc-${item.id}` ? 'opacity-50' : 'hover:scale-105'}`}
-                                                            title="Melhorar descrição com AI"
-                                                        >
-                                                            {isGenerating === `desc-${item.id}` ? '...' : '✨'}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-4">
-                                                     <button 
-                                                        onClick={() => analyzeRisk(item)}
-                                                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-slate-200"
-                                                    >
-                                                        <i data-lucide="zap" className="w-3 h-3"></i> Analisar CCP ✨
-                                                    </button>
-                                                    <button onClick={() => deleteItem(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
-                                                        <i data-lucide="trash-2"></i>
-                                                    </button>
-                                                </div>
+                        ) : (
+                            items.map((item) => {
+                                const { valorCaucao, calendar } = calculateResults(item);
+                                return (
+                                    <div key={item.id} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-8 mb-6">
+                                        <div className="flex justify-between mb-6">
+                                            <div className="flex-1">
+                                                <input className="bg-transparent text-xl font-black text-slate-800 w-full outline-none" value={item.descricao} placeholder="Descrição do contrato" onChange={(e) => updateItem(item.id, 'descricao', e.target.value)} />
                                             </div>
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                                                <div className="lg:col-span-4 space-y-4">
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase">Valor Contrato (€)</label>
-                                                        <input type="number" className="w-full bg-slate-50 border p-3 rounded-xl font-bold" value={item.valorContrato} onChange={(e) => updateItem(item.id, 'valorContrato', e.target.value)} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-indigo-500 uppercase">Taxa Caução (%)</label>
-                                                        <input type="number" className="w-full bg-indigo-50 border-indigo-100 p-3 rounded-xl font-black text-indigo-700" value={item.taxaCaucao} onChange={(e) => updateItem(item.id, 'taxaCaucao', e.target.value)} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase">Data Início / Auto Consig.</label>
-                                                        <input type="date" className="w-full bg-slate-50 border p-3 rounded-xl font-bold" value={item.dataInicio} onChange={(e) => updateItem(item.id, 'dataInicio', e.target.value)} />
-                                                    </div>
-                                                    <div className="bg-slate-900 p-4 rounded-xl text-white">
-                                                        <span className="text-[10px] font-bold text-indigo-400 uppercase">Total Retido (Caução)</span>
-                                                        <div className="text-2xl font-black">{valorCaucao.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}</div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="lg:col-span-8 flex flex-col gap-6">
-                                                    {item.aiAnalysis && (
-                                                        <div className="bg-amber-50 border border-amber-100 p-5 rounded-2xl relative">
-                                                            <div className="absolute -top-3 right-5 bg-white px-3 py-1 rounded-full text-[10px] font-black text-amber-500 border border-amber-100 shadow-sm flex items-center gap-1">
-                                                                ANÁLISE INTELIGENTE ✨
-                                                            </div>
-                                                            <div className="text-sm text-amber-900 whitespace-pre-line leading-relaxed italic">
-                                                                {item.aiAnalysis}
-                                                            </div>
+                                            <button onClick={() => deleteItem(item.id)} className="text-slate-300 hover:text-red-500"><i data-lucide="trash-2"></i></button>
+                                        </div>
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                            <div className="space-y-4">
+                                                <input type="number" className="w-full bg-slate-50 border p-3 rounded-xl font-bold" value={item.valorContrato} placeholder="Valor do contrato" onChange={(e) => updateItem(item.id, 'valorContrato', e.target.value)} />
+                                                <input type="number" className="w-full bg-indigo-50 border p-3 rounded-xl font-black text-indigo-700" value={item.taxaCaucao} onChange={(e) => updateItem(item.id, 'taxaCaucao', e.target.value)} />
+                                            </div>
+                                            <div className="lg:col-span-2">
+                                                <div className="grid grid-cols-5 gap-2">
+                                                    {item.stages.map((s, idx) => (
+                                                        <div key={s.id} className="bg-slate-50 p-3 rounded-xl border">
+                                                            <input type="number" className="w-full font-black text-sm bg-transparent" value={s.percent} onChange={(e) => updateItemStage(item.id, s.id, e.target.value)} />
+                                                            <div className="text-[10px] text-indigo-600 mt-1">{calendar[idx].valor.toFixed(0)}€</div>
                                                         </div>
-                                                    )}
-
-                                                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                                                        {item.stages.map((stage, idx) => (
-                                                            <div key={stage.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100 hover:border-indigo-200 transition-colors group">
-                                                                <span className="text-[9px] font-black text-slate-400 group-hover:text-indigo-400">LIBERTAÇÃO {stage.id} (%)</span>
-                                                                <input type="number" className="w-full font-black text-lg bg-transparent outline-none" value={stage.percent} onChange={(e) => updateItemStage(item.id, stage.id, e.target.value)} />
-                                                                <div className="text-xs font-black text-indigo-600 mt-2">{calendar[idx]?.valor.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}</div>
-                                                                <div className="text-[10px] text-slate-400 font-bold mt-1">{new Date(calendar[idx]?.data).toLocaleDateString('pt-PT')}</div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         </div>
-                                    );
-                                })
-                            )}
-                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
                     </main>
 
-                    <footer className="bg-white border-t p-10 mt-10">
-                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div>
-                                <h3 className="font-black uppercase tracking-tighter italic">PedroTeixeira©</h3>
-                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Especialista em Contratação Pública • CCP</p>
-                            </div>
-                            <div className="text-[10px] font-bold text-slate-300 flex items-center gap-2">
-                                <i data-lucide="shield" className="w-3 h-3"></i> PROCESSADO COM SEGURANÇA POR GOOGLE GEMINI 2.5
-                            </div>
+                    <footer className="bg-slate-900 text-white p-10 mt-10">
+                        <div className="max-w-7xl mx-auto text-center space-y-4">
+                            <p className="font-bold">Se gostou, veja aqui mais ferramentas e os nossos cursos sempre atualizados com as novas alterações ao CCP:</p>
+                            <a href="https://www.consultoria-ccp.pt/" target="_blank" className="text-indigo-400 font-black underline">https://www.consultoria-ccp.pt/</a>
+                            <p>Contacte-nos: <a href="mailto:pedro@consultoria-ccp.pt" className="text-indigo-400 underline">pedro@consultoria-ccp.pt</a></p>
+                            <p className="text-xs text-slate-500 pt-4">PedroTeixeira© - Gestão de Garantias</p>
                         </div>
                     </footer>
                 </div>
